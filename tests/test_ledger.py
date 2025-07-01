@@ -1,7 +1,8 @@
 import pytest
 from uuid import uuid4
 from app.ledger import Ledger
-from app.schemas import *
+from app.schemas import IncomingDepositParams, WithdrawParams, ConvertParams
+from decimal import Decimal
 
 
 def test_deposit():
