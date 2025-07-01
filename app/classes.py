@@ -10,7 +10,6 @@ from app.schemas import (
     ConsumedEntry,
 )
 from app.exceptions import WithdrawalError
-from app.service import round6_up
 
 
 class Wallet(ABC):
@@ -57,7 +56,7 @@ class DepositQueueMixin:
         while remaining > Decimal("0") and self.deposits[currency]:
             deposit: DepositEntry = self.deposits[currency][0]
             taken: Decimal = deposit.consume(remaining)
-            remaining: Decimal = round6_up(remaining - taken)
+            remaining: Decimal = Decimal(remaining - taken)
 
             consumed.append(ConsumedEntry.create(deposit, taken, currency))
 
@@ -74,12 +73,12 @@ class DepositEntry:
     def __init__(self, deposit: IncomingDepositParams):
         self.tx_id: UUID = deposit.tx_id
         self.currency: str = deposit.currency
-        self.original_amount: Decimal = round6_up(deposit.amount - deposit.fee)
+        self.original_amount: Decimal = Decimal(deposit.amount - deposit.fee)
         self.remaining_amount: Decimal = self.original_amount
 
     def consume(self, amount: Decimal) -> Decimal:
         taken: Decimal = min(self.remaining_amount, amount)
-        self.remaining_amount = round6_up(self.remaining_amount - taken)
+        self.remaining_amount = Decimal(self.remaining_amount - taken)
         return taken
 
     def is_empty(self) -> bool:

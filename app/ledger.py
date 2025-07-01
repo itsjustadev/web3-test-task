@@ -2,7 +2,6 @@ from collections import deque
 from decimal import Decimal
 from typing import Dict, List
 import copy
-from uuid import uuid4
 
 from app.schemas import (
     IncomingDepositParams,
@@ -12,14 +11,13 @@ from app.schemas import (
 )
 from app.classes import DepositEntry, Wallet, DepositQueueMixin
 from app.exceptions import WithdrawalError
-from app.service import round6_up
 
 
 class Ledger(Wallet, DepositQueueMixin):
 
     def balance(self) -> Dict[str, Decimal]:
         return {
-            currency: round6_up(sum(entry.remaining_amount for entry in deposits))
+            currency: Decimal(sum(entry.remaining_amount for entry in deposits))
             for currency, deposits in self.deposits.items()
         }
 
@@ -30,7 +28,7 @@ class Ledger(Wallet, DepositQueueMixin):
         self.deposits[deposit.currency].append(entry)
 
     def withdraw(self, withdraw: WithdrawParams) -> List[ConsumedEntry]:
-        total_to_reduce: Decimal = round6_up(withdraw.amount + withdraw.fee)
+        total_to_reduce: Decimal = Decimal(withdraw.amount + withdraw.fee)
         currency: str = withdraw.currency
         original_deposits: deque[DepositEntry] = copy.deepcopy(self.deposits[currency])
 
@@ -45,36 +43,37 @@ class Ledger(Wallet, DepositQueueMixin):
             self.deposits[currency] = original_deposits
             raise
 
-        factor: Decimal = withdraw.amount / total_to_reduce
-        return [
-            ConsumedEntry.create(c, c.taken_amount * factor, currency) for c in consumed
-        ]
+        return [ConsumedEntry.create(c, c.taken_amount, currency) for c in consumed]
 
     def convert(self, convert: ConvertParams) -> List[ConsumedEntry]:
-        total_to_reduce: Decimal = round6_up(convert.amount_from + convert.fee)
+        total_to_reduce: Decimal = Decimal(convert.amount_from + convert.fee)
 
         consumed: List[ConsumedEntry] = self._consume_deposits(
             convert.currency_from, total_to_reduce
         )
 
-        factor: Decimal = convert.amount_from / total_to_reduce
+        total_taken = sum(c.taken_amount for c in consumed)
+        adjusted_consumed: List[ConsumedEntry] = []
 
-        adjusted_consumed: List[ConsumedEntry] = [
-            ConsumedEntry(
-                tx_id=c.tx_id,
-                original_amount=c.original_amount,
-                taken_amount=round6_up(c.taken_amount * factor),
-                currency=convert.currency_from,
+        for c in consumed:
+            amount_to = (c.taken_amount / total_taken) * convert.amount_to
+            adjusted_consumed.append(
+                ConsumedEntry(
+                    tx_id=c.tx_id,
+                    original_amount=c.original_amount,
+                    taken_amount=c.taken_amount,
+                    currency=convert.currency_from,
+                    amount_to=amount_to,
+                )
             )
-            for c in consumed
-        ]
 
-        self.deposit(
-            IncomingDepositParams(
-                tx_id=uuid4(),
-                currency=convert.currency_to,
-                amount=convert.amount_to,
+            self.deposit(
+                IncomingDepositParams(
+                    tx_id=c.tx_id,
+                    currency=convert.currency_to,
+                    amount=amount_to,
+                    fee=Decimal("0"),
+                )
             )
-        )
 
         return adjusted_consumed

@@ -3,8 +3,6 @@ from uuid import UUID
 from decimal import Decimal
 from typing import Any
 
-from app.service import round6_up
-
 
 class IncomingDepositParams(BaseModel):
     amount: Decimal
@@ -27,35 +25,20 @@ class WithdrawParams(BaseModel):
     fee: Decimal
 
 
-# class ConsumedEntry(BaseModel):
-#     tx_id: UUID
-#     original_amount: Decimal
-#     taken_amount: Decimal
-#     currency: str
-
-#     @classmethod
-#     def create(cls, obj, taken_amount: Decimal, currency: str) -> "ConsumedEntry":
-#         return cls(
-#             tx_id=obj.tx_id if hasattr(obj, "tx_id") else obj["tx_id"],
-#             original_amount=(
-#                 obj.original_amount
-#                 if hasattr(obj, "original_amount")
-#                 else obj["original_amount"]
-#             ),
-#             taken_amount=round6_up(taken_amount),
-#             currency=currency,
-#         )
-
-
 class ConsumedEntry(BaseModel):
     tx_id: UUID
     original_amount: Decimal
     taken_amount: Decimal
     currency: str
+    amount_to: Decimal | None = None
 
     @classmethod
     def create(
-        cls, obj: dict | object, taken_amount: Decimal, currency: str
+        cls,
+        obj: dict | object,
+        taken_amount: Decimal,
+        currency: str,
+        amount_to: Decimal | None = None,
     ) -> "ConsumedEntry":
         if isinstance(obj, dict):
             tx_id = obj.get("tx_id")
@@ -74,4 +57,5 @@ class ConsumedEntry(BaseModel):
             original_amount=original_amount,
             taken_amount=taken_amount,
             currency=currency,
+            amount_to=amount_to,
         )
